@@ -21,9 +21,6 @@ articles on typepad.
 	// Here the key is the blog id, value is the number of 
 	// blog posts we handled so far
 	var blogCount = 0;
-
-	// This keeps track of which blog data has been collected
-	var blogDone = false;
 	
 	// The blog we are retrieving the items for
 	var blogId = "";
@@ -96,17 +93,13 @@ articles on typepad.
         	}
 		});  // each
         
-		if (blogCount >= total)
-			blogDone = true;
-
-		// If we did not handle everything
-		if (!blogDone)
-			retrievePosts(blogId, blogCount + 1);
-
-		if (blogDone) {
+		if (blogCount >= total) {
 			$('#btnRun').prop('disabled', false);
+		} else {
+			// If we did not handle everything
+			retrievePosts(blogId, blogCount + 1);
 		}
-
+		
 		log('handleData end');
 
     } // function handleData()
