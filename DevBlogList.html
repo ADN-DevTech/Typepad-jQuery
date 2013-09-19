@@ -7,7 +7,7 @@ articles on typepad.
 -->
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
-	<title>DevBlog Stats</title>
+	<title>DevBlog List</title>
 	<meta content="text/html; charset=utf-8" http-equiv="Content-Type"></meta>
   
 	<script src="http://code.jquery.com/jquery-1.7.js" type="text/javascript"></script>
@@ -74,6 +74,7 @@ articles on typepad.
 			return;
 
 		var total = data.totalResults;
+		var done = false;
 
 		$.each(data.entries, function (key, value) {
 			var title = value.title;
@@ -82,20 +83,22 @@ articles on typepad.
 			if (isDateOk(value.published)) {
 				// Add the data: Title and URL
 				addRow(title, value.permalinkUrl, value.published);
-			}
-    		else
-			// If the published date is too old, then we can skip the rest,
-        	// since the posts are organized from youngest to oldest
-        	// Also set the blogDone, so that no further posts get retrieved
-        	{
-				blogDone = true;
+			} else {
+				// If the published date is too old, then we can skip the rest,
+        		// since the posts are organized from youngest to oldest
+        		// Also enable the Run button if no further posts will get retrieved
+				done = true;
     			return false;
         	}
 		});  // each
         
 		if (blogCount >= total) {
+			done = true;
+		}
+		
+		if (done) {
 			$('#btnRun').prop('disabled', false);
-		} else {
+		} else { 
 			// If we did not handle everything
 			retrievePosts(blogId, blogCount + 1);
 		}
@@ -155,8 +158,6 @@ articles on typepad.
 			oddColor = true;
 		}
 
-        // Set author name 
-
 		// Number / #
 		var cell = row.insertCell(row.cells.length);
 		cell.innerHTML = blogCount.toString();
@@ -196,7 +197,7 @@ articles on typepad.
 			retrievePosts(blogId, 1);
 		}); // click
     });  // ready
-  </script>
+	</script>
 </head>
 <body>
 	<h1>DevBlog List</h1>
