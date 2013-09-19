@@ -1,0 +1,228 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" 
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!-- 
+Written By: Adam Nagy 2013
+This is a sample which shows how you can use typepad REST API to get a list of all the 
+articles on typepad.
+-->
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+	<title>DevBlog Stats</title>
+	<meta content="text/html; charset=utf-8" http-equiv="Content-Type"></meta>
+  
+	<script src="http://code.jquery.com/jquery-1.7.js" type="text/javascript"></script>
+	<!-- if the below js file is available then use that, so that intellisense will be available -->
+	<!-- <script src="./Scripts/jquery-1.4.1.js" type="text/javascript"></script> -->
+  
+  	<script type="text/javascript">
+
+	jQuery.support.cors = true;
+
+	// Here the key is the blog id, value is the number of 
+	// blog posts we handled so far
+	var blogCount = 0;
+
+	// This keeps track of which blog data has been collected
+	var blogDone = false;
+	
+	// The blog we are retrieving the items for
+	var blogId = "";
+
+	// Allowed day differences
+	var oldestDay = null;
+    
+	// Changing color for each row
+	var oddColor = true;
+
+	Object.size = function (obj) {
+     
+		var size = 0, key;
+    	for (key in obj) {
+    		if (obj.hasOwnProperty(key)) size++;
+		}
+		return size;
+    };
+
+	function log(text) {
+      
+    	try {
+    		console.log(text);
+    	}
+    	catch (e) { }
+
+    } // function log()
+
+	function isDateOk(dateString) {
+    
+		if (oldestDay == null)
+			return true;	
+
+		var year = parseInt(dateString.substr(0, 4), 10);
+		var month = parseInt(dateString.substr(5, 2), 10);
+		var day = parseInt(dateString.substr(8, 2), 10);
+
+		var date = new Date(year, month - 1, day);
+
+		log(dateString);
+
+		return (oldestDay < date);
+
+	} // function isDateOk()
+
+	function handleData(data) {
+
+		log('handleData start');
+
+		if (!data.entries.length)
+			return;
+
+		var total = data.totalResults;
+
+		$.each(data.entries, function (key, value) {
+			var title = value.title;
+			log('handleData each / ' + title);
+
+			if (isDateOk(value.published)) {
+				// Add the data: Title and URL
+				addRow(title, value.permalinkUrl, value.published);
+			}
+    		else
+			// If the published date is too old, then we can skip the rest,
+        	// since the posts are organized from youngest to oldest
+        	// Also set the blogDone, so that no further posts get retrieved
+        	{
+				blogDone = true;
+    			return false;
+        	}
+		});  // each
+        
+		if (blogCount >= total)
+			blogDone = true;
+
+		// If we did not handle everything
+		if (!blogDone)
+			retrievePosts(blogId, blogCount + 1);
+
+		if (blogDone) {
+			$('#btnRun').prop('disabled', false);
+		}
+
+		log('handleData end');
+
+    } // function handleData()
+
+	function fillTableHeader() {
+
+		var table = document.getElementById("tableStats");
+
+		// Delete all rows
+		while (table.rows.length)
+			table.deleteRow(0);
+
+		var theader = table.insertRow(table.rows.length);
+		theader.style.backgroundColor = "#ffddaa";
+		cell = theader.insertCell(theader.cells.length);
+		cell.innerHTML = "#";		
+		cell = theader.insertCell(theader.cells.length);
+		cell.innerHTML = "Title";
+		cell = theader.insertCell(theader.cells.length);
+		cell.innerHTML = "Date Published";
+
+	} // function fillTableHeader()
+
+	function retrievePosts(blogId, startIndex) {
+     
+		$.ajax({
+			type: 'GET',
+			url: 'http://api.typepad.com/blogs/' + blogId + '/post-assets.json?start-index=' + startIndex,	
+			success: function (data) {
+				handleData(data);
+			}, // success
+			error: function (msg, url, line) {
+				alert('msg = ' + msg.responseText + ', url = ' + url + ', line = ' + line);
+			} // error
+		}); // ajax
+
+	} // function retrievePosts()
+
+	function addRow(title, url, date) {
+	
+		blogCount++;
+
+		var table = document.getElementById("tableStats");
+
+		var row = table.insertRow(table.rows.length);
+
+		if (oddColor) {
+			row.style.backgroundColor = "#efefef";
+			oddColor = false;
+		}
+        else {
+			row.style.backgroundColor = "#fefefe";
+			oddColor = true;
+		}
+
+        // Set author name 
+
+		// Number / #
+		var cell = row.insertCell(row.cells.length);
+		cell.innerHTML = blogCount.toString();
+		// Title and link
+		var cell = row.insertCell(row.cells.length);
+		cell.innerHTML = "<a target='_blank' href='" + url + "'>" + title + "</a>";
+		// Date Published
+		var cell = row.insertCell(row.cells.length);
+		cell.innerHTML = date;
+                
+    } // function fillTableBody()
+
+    $(document).ready(function () {
+
+		$('#btnRun').prop('disabled', false);	
+
+		$('#btnRun').click(function () {
+
+			$('#btnRun').prop('disabled', true);
+        
+			// Set the used day difference
+
+			var dayDiff = parseInt(document.getElementById("numDays").value);
+			if (dayDiff > 0) {
+				oldestDay = new Date();
+				oldestDay.setDate(oldestDay.getDate() - dayDiff);  
+			} else {
+				oldestDay = null;
+			}      
+        
+			blogCount = 0;
+			fillTableHeader();
+			
+			// Get the info for the blog
+
+			blogId = document.getElementById("lstBlog").value;
+			retrievePosts(blogId, 1);
+		}); // click
+    });  // ready
+  </script>
+</head>
+<body>
+	<h1>DevBlog List</h1>
+	<p>Which DevBlog:<br />
+		<select name="lstBlog" id="lstBlog" size="5" multiple="multiple">
+			<option value="6a0167607c2431970b0168e5d2171f970c">AEC</option>
+			<option value="6a0167607c2431970b0162ffdc445e970d">PTD</option>
+			<option value="6a0167607c2431970b0168ebc3adf1970c">C&amp;M</option>
+			<option value="6a0167607c2431970b0168e5d21842970c">GIS</option>
+			<option value="6a0167607c2431970b0168e5d217cf970c">MFG</option>
+		</select>
+	</p>
+	<p>
+    	For the last how many days you want to list the posts (in case of 0 all of them will be returned):
+		<input type="text" id="numDays" value="7" />
+	</p> 
+		<button type="button" id="btnRun">Run Query</button>
+	<p>
+    	<table id="tableStats" cellpadding="4px" cellspacing="4px" />
+	</p>
+</body>
+</html>

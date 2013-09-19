@@ -1,0 +1,302 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" 
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!-- 
+Written By: Adam Nagy 2012
+This is a sample which shows how you can use typepad REST API to get a list of all the 
+post in order to create statistics on who posted how many rticles on which blog.
+-->
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <title>DevBlog Stats</title>
+  <meta content="text/html; charset=utf-8" http-equiv="Content-Type"></meta>
+  
+  <script src="http://code.jquery.com/jquery-1.7.js" type="text/javascript"></script>
+  <!-- if the below js file is available then use that, so that intellisense will be available -->
+  <!-- <script src="./Scripts/jquery-1.4.1.js" type="text/javascript"></script> -->
+  
+  <script type="text/javascript">
+
+    jQuery.support.cors = true;
+
+    // The blogs we need to go through
+    // Here the key is the blog name, value is the id
+    var blogIds = {
+      "AEC": "6a0167607c2431970b0168e5d2171f970c",
+      "PTD": "6a0167607c2431970b0162ffdc445e970d",
+      "C&amp;M": "6a0167607c2431970b0168ebc3adf1970c",
+      "GIS": "6a0167607c2431970b0168e5d21842970c",
+      "MFG": "6a0167607c2431970b0168e5d217cf970c"
+    };
+
+    // Here the key is the blog id, value is the number of 
+    // blog posts we handled so far
+    var blogCounts = {};
+
+    // This keeps track of which blog data has been collected
+    var blogDone = {};
+
+    // Allowed day differences
+    var oldestDay = new Date();
+
+    // Track information about authors
+    var authors = {};
+
+    Object.size = function (obj) {
+     
+      var size = 0, key;
+      for (key in obj) {
+        if (obj.hasOwnProperty(key)) size++;
+      }
+      return size;
+
+    };
+
+    function isAllDone() {
+
+      // So if all of them are done 
+      // then we are finished gathering the data
+      for (var key in blogCounts) {
+        if (!blogDone[key])
+          return false;
+      }
+
+      return true;
+
+    } // function isAllDone()
+
+    function log(text) {
+      
+      try {
+        console.log(text);
+      }
+      catch (e) { }
+
+    } // function log()
+
+    function isDateOk(dateString) {
+
+      var year = parseInt(dateString.substr(0, 4), 10);
+      var month = parseInt(dateString.substr(5, 2), 10);
+      var day = parseInt(dateString.substr(8, 2), 10);
+
+      var date = new Date(year, month - 1, day);
+
+      log(dateString);
+
+      return (oldestDay < date);
+
+    } // function isDateOk()
+
+    function bumpCount(blogId, values) {
+
+      if (blogCounts[blogId])
+        blogCounts[blogId] = blogCounts[blogId] + 1;
+      else {
+        blogCounts[blogId] = 1;
+      }
+
+      if (values[blogId])
+        values[blogId] = values[blogId] + 1;
+      else
+        values[blogId] = 1;
+
+    } // function bumpCount()
+
+    function handleData(data) {
+
+      log('handleData start');
+
+      if (!data.entries.length)
+        return;
+
+      var blogId = data.entries[0].container.urlId;
+      var blogName = data.entries[0].container.displayName;
+
+      log('handleData blogName / ' + blogName);
+
+      var total = data.totalResults;
+
+      $.each(data.entries, function (key, value) {
+        var name = value.author.displayName;
+        log('handleData each / ' + name);
+
+        if (isDateOk(value.published)) {
+
+          var values;
+          if (authors[name])
+            values = authors[name];
+          else {
+            values = {};
+            authors[name] = values;
+          }
+
+          bumpCount(blogId, values);
+        }
+        else
+        // If the published date is too old, then we can skip the rest,
+        // since the posts are organized from youngest to oldest
+        // Also set the blogDone, so that no further posts get retrieved
+        {
+          blogDone[blogId] = true;
+          return false;
+        }
+      });  // each
+
+      if (blogCounts[blogId] >= total)
+        blogDone[blogId] = true;
+
+      // If we did not handle everything
+      if (!blogDone[blogId])
+        retrievePosts(blogId, blogCounts[blogId] + 1);
+
+      if (isAllDone()) {
+        fillTableHeader();
+        fillTableBody();
+        $('#btnRun').prop('disabled', false);
+      }
+
+      log('handleData end');
+
+    } // function handleData()
+
+    function fillTableHeader() {
+
+      var table = document.getElementById("tableStats");
+
+      // Delete all rows
+
+      while (table.rows.length)
+        table.deleteRow(0);
+
+      var theader = table.insertRow(table.rows.length);
+      theader.style.backgroundColor = "#ffddaa";
+      var cell = theader.insertCell(theader.cells.length);
+      cell.innerHTML = "Name";
+      for (var key in blogIds) {
+        var cell = theader.insertCell(theader.cells.length);
+        cell.innerHTML = key;
+      } // for
+
+    } // function fillTableHeader()
+
+    function retrievePosts(blogId, startIndex) {
+     
+      $.ajax({
+        type: 'GET',
+        url: 'http://api.typepad.com/blogs/' + blogId + '/post-assets.json?start-index=' + startIndex,
+        success: function (data) {
+          handleData(data);
+        }, // success
+        error: function (msg, url, line) {
+          alert('msg = ' + msg.responseText + ', url = ' + url + ', line = ' + line);
+        } // error
+      }); // ajax
+
+    } // function retrievePosts()
+
+    function fillTableBody() {
+
+      var table = document.getElementById("tableStats");
+
+      var oddColor = true;
+
+      for (var item in authors) {
+        var row = table.insertRow(table.rows.length);
+
+        if (oddColor) {
+          row.style.backgroundColor = "#efefef";
+          oddColor = false;
+        }
+        else {
+          row.style.backgroundColor = "#fefefe";
+          oddColor = true;
+        }
+
+        // Set author name 
+
+        var cell = row.insertCell(row.cells.length);
+        cell.innerHTML = item;
+
+        // Fill table with stats
+
+        var stats = authors[item];
+
+        for (var key in blogIds) {
+          cell = row.insertCell(row.cells.length);
+          cell.style.textAlign = "right";
+          var blogId = blogIds[key];
+          if (stats[blogId]) {
+            cell.innerHTML = stats[blogId];
+          }
+          else {
+            cell.innerHTML = '0';
+          }
+        } // for
+      } // for
+
+      // Add totals 
+
+      var row = table.insertRow(table.rows.length);
+      row.style.backgroundColor = "#ffddaa";
+
+      var cell = row.insertCell(row.cells.length);
+      cell.innerHTML = "Total";
+
+      for (var key in blogIds) {
+        var blogId = blogIds[key];
+        cell = row.insertCell(row.cells.length);
+        cell.style.textAlign = "right";
+        cell.innerHTML = blogCounts[blogId];
+
+      } // for
+
+    } // function fillTableBody()
+
+    $(document).ready(function () {
+
+	  $('#btnRun').prop('disabled', false);	
+
+      $('#btnRun').click(function () {
+
+        $('#btnRun').prop('disabled', true);
+
+        // Set the used day difference
+
+        var dayDiff = parseInt(document.getElementById("numDays").value);
+        oldestDay = new Date();
+        oldestDay.setDate(oldestDay.getDate() - dayDiff);
+
+        // Initialize variables
+
+        blogCounts = {};
+        blogDone = {};
+        authors = {};
+
+        // Get the info for everyone
+
+        for (var i in blogIds) {
+          var blogId = blogIds[i];
+
+          blogDone[blogId] = false;
+          blogCounts[blogId] = 0;
+
+          retrievePosts(blogId, 1);
+        } // for
+      }); // click
+    });  // ready
+  </script>
+</head>
+<body>
+  <h1>
+    DevBlog Stats</h1>
+  <p>
+    Stats for the last how many days:
+    <input type="text" id="numDays" value="7" />
+  </p>
+  <button type="button" id="btnRun">
+    Run Query</button>
+  <p>
+    <table id="tableStats" cellpadding="4px" cellspacing="4px" />
+  </p>
+</body>
+</html>
